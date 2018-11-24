@@ -1,6 +1,3 @@
-using System;
-using System.Collections;
-
 public class Edge {
 	public int n1;
 	public int n2;

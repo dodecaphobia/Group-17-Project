@@ -1,16 +1,20 @@
-﻿using System;
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 
-public class AIAgentGenerator : MonoBehaviour {
+public class AIAgentGenerator : MonoBehaviour
+{
+
+    public int setSocial = 50;
+    public int setInitialKnowledge = 50;
 
     public int displacement;
     public string nodeFile;
     public string edgeFile;
     public int numAgents;
     public GameObject agent;
+    public GameObject nodeObject;
     private List<Node> spawn;
     private List<Node> nodes;
     private List<Edge> edges;
@@ -34,6 +38,15 @@ public class AIAgentGenerator : MonoBehaviour {
             else if (int.Parse(items[2]) == 2)
                 spawn.Add(nodes[nodes.Count - 1]);
         }
+
+        //create node game objects
+        foreach (Node n in nodes)
+        {
+            GameObject temp = Instantiate(nodeObject, new Vector3(n.x, 5, n.y), Quaternion.identity);
+            NodeColorChanger nodeColor = (NodeColorChanger)temp.GetComponent("NodeColorChanger");
+            nodeColor.setNode(n);
+        }
+
         //determine edges
         reader = File.OpenText(edgeFile);
         while ((line = reader.ReadLine()) != null)
@@ -62,21 +75,26 @@ public class AIAgentGenerator : MonoBehaviour {
 
     private List<Edge> getEdges()
     {
+        List<Edge> temp = new List<Edge>();
         System.Random rnd = new System.Random();
-        if(rnd.Next(0,2) == 0)
-            return new List<Edge>();
-        return edges;
+        foreach (Edge e in edges)
+        {
+            if (rnd.Next(0, 100) < setInitialKnowledge)
+                temp.Add(e);
+        }
+        return temp;
     }
 
     IEnumerator generateAgent()
     {
         for (int i = 0; i < numAgents; i++)
         {
-            foreach(Node n in spawn)
+            foreach (Node n in spawn)
             {
                 GameObject temp = Instantiate(agent, new Vector3(n.x, 1, n.y), Quaternion.identity);
                 AIcontroller ai = temp.GetComponent<AIcontroller>();
-                //Debug.Log("About to set graph.");
+
+                ai.setInternalVars(setSocial);
                 List<Edge> e = getEdges();
                 ai.SetGraph(n, nodes, e, exits);
             }

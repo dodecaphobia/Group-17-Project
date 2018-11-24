@@ -12,6 +12,9 @@ public class AIcontroller : MonoBehaviour
     public List<Edge> edges;
     public List<int> exits;
 
+    //internal vars
+    private int social = 0;
+
     //vars for A*
     private List<int> extraExits;
     private List<int> searched;
@@ -34,7 +37,7 @@ public class AIcontroller : MonoBehaviour
         {
             if (exits.Contains((int)dest[0]))
             {
-                Destroy(this.gameObject);
+                Destroy(gameObject);
                 return;
             }
             //update visited list
@@ -45,10 +48,18 @@ public class AIcontroller : MonoBehaviour
                 dest = repeatedA((int)dest[0]);
             dest.RemoveAt(0);
             //get destination node
-            Node n = getNode((int)dest[0]);
-            Vector3 v = new Vector3(n.x, 0, n.y);
-            agent.SetDestination(v);
+            if (dest.Count > 0)
+            {
+                Node n = getNode((int)dest[0]);
+                Vector3 v = new Vector3(n.x, 0, n.y);
+                agent.SetDestination(v);
+            }
         }
+    }
+
+    public void setInternalVars(int s)
+    {
+        social = s;
     }
 
     public void SetGraph(Node start, List<Node> n, List<Edge> ed, List<int> ex)
@@ -60,14 +71,14 @@ public class AIcontroller : MonoBehaviour
         exits = ex;
     }
 
-    public List<double> getPath(List<int> otherNodes)
+    public List<Edge> getEdges()
     {
-        return repeatedA((int)dest[0], otherNodes);
+        return this.edges;
     }
 
     private void addEdges(List<Edge> newEdges)
     {
-        foreach(Edge e in newEdges)
+        foreach (Edge e in newEdges)
         {
             if (!edges.Contains(e))
                 edges.Add(e);
@@ -85,7 +96,7 @@ public class AIcontroller : MonoBehaviour
         }
     }
 
-    private Node getNode(int id)
+    public Node getNode(int id)
     {
         foreach (Node n in nodes)
         {
@@ -93,6 +104,16 @@ public class AIcontroller : MonoBehaviour
                 return n;
         }
         Debug.Log("Node not found");
+        return null;
+    }
+
+    public Edge getEdge(int a, int b)
+    {
+        foreach (Edge e in edges)
+        {
+            if ((e.n1 == a && e.n2 == b) || (e.n1 == b && e.n2 == a))
+                return e;
+        }
         return null;
     }
 
@@ -118,8 +139,8 @@ public class AIcontroller : MonoBehaviour
             if (val > getDistance(cur, n))
                 val = getDistance(cur, n);
         }
-        if(thisNode)
-            foreach(int n in extraExits)
+        if (thisNode)
+            foreach (int n in extraExits)
             {
                 if (val > getDistance(cur, n))
                     val = getDistance(cur, n);
@@ -179,53 +200,10 @@ public class AIcontroller : MonoBehaviour
         return null;
     }
 
-    private List<double> expand(int curNode, List<int> otherNodes)
-    {
-        //if current node is an exit, return path
-        foreach (int n in otherNodes)
-        {
-            if (n == curNode)
-                return paths[n].GetRange(1, paths[n].Count - 1);
-        }
-        //get all unchecked nodes connected to curNode
-        List<int> edge = new List<int>();
-        foreach (Edge e in edges)
-        {
-            if (e.n1 == curNode && !edge.Contains(e.n2))
-                edge.Add(e.n2);
-            if (e.n2 == curNode && !edge.Contains(e.n1))
-                edge.Add(e.n1);
-        }
-        //insert into g(x), h(x), path into hashmap, selecting for minimum g(x)
-        foreach (int e in edge)
-        {
-            if (!searched.Contains(e))
-            {
-                double g = paths[curNode][0] + getDistance(curNode, e);
-                if (paths.ContainsKey(e))
-                    paths[e][0] = Math.Min(g, paths[e][0]);
-                else
-                {
-                    double h = heuristic(e, otherNodes, false);
-                    List<double> l = new List<double>(paths[curNode]);
-                    l[0] = g;
-                    l[1] = h;
-                    l.Add(e);
-                    paths.Add(e, l);
-                }
-                //add nodes to neighbor list
-                if (!(neighbors.Contains(e)))
-                    neighbors.Add(e);
-            }
-        }
-        //add to searched list
-        searched.Add(curNode);
-        //return null, exit not found
-        return null;
-    }
-
     private int removeNext()
     {
+        if (neighbors.Count == 0)
+            return -1;
         //iterate through neighbor list, selecting for minimum g(x) + h(x)
         int n = neighbors[0];
         foreach (int x in neighbors)
@@ -238,12 +216,13 @@ public class AIcontroller : MonoBehaviour
         return n;
     }
 
-    private List<double> repeatedA(int curNode, List<int> otherExits)
+    private List<Edge> query(int curNode, List<int> otherExits)
     {
         //initialize hashmap, searched, neighbor list
         paths = new Dictionary<int, List<double>>();
         searched = new List<int>();
         neighbors = new List<int>();
+
         //insert curNode into hashmap and neighborlist, g(x) = 0
         List<double> l = new List<double>();
         l.Add(0);
@@ -256,7 +235,19 @@ public class AIcontroller : MonoBehaviour
         {
             l = expand(removeNext());
             if (l != null)
-                return l;
+            {
+                List<Edge> edgePath = new List<Edge>();
+                int a = curNode;
+                int b = -1;
+                for (int i = 2; i < l.Count - 1; i++)
+                {
+                    b = (int)l[i];
+                    edgePath.Add(getEdge(a, b));
+                    a = b;
+                }
+                return edgePath;
+            }
+            return new List<Edge>();
         }
         //if loop exited, exit not found, do not recommend path
         return null;
@@ -301,10 +292,16 @@ public class AIcontroller : MonoBehaviour
         AIcontroller other = (AIcontroller)collision.gameObject.GetComponent("AIcontroller");
         if (!(other == null))
         {
-            List<double> temp = getPath(other.exits);
-            if(temp != null)
-                dest = temp;
-            Debug.Log("Enter called.");
+            System.Random rnd = new System.Random();
+            if (rnd.Next(0, 100) < social)
+            {
+                List<Edge> pathEdges = query((int)dest[0], other.exits);
+                if (pathEdges != null)
+                    addEdges(pathEdges);
+                //Debug.Log("Entered range, communicating with .");
+            }
+            else { }
+                //Debug.Log("Entered range, did not communicate.");
         }
     }
 }
